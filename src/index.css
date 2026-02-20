@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 255 255 255;
+        --foreground: 15 23 42;
+        /* Slate 900 */
+
+        --card: 255 255 255;
+        --card-foreground: 15 23 42;
+
+        --popover: 255 255 255;
+        --popover-foreground: 15 23 42;
+
+        --primary: 79 70 229;
+        /* Indigo 600 */
+        --primary-foreground: 248 250 252;
+
+        --secondary: 241 245 249;
+        /* Slate 100 */
+        --secondary-foreground: 15 23 42;
+
+        --muted: 241 245 249;
+        --muted-foreground: 100 116 139;
+
+        --accent: 241 245 249;
+        --accent-foreground: 15 23 42;
+
+        --destructive: 239 68 68;
+        --destructive-foreground: 248 250 252;
+
+        --border: 226 232 240;
+        --input: 226 232 240;
+        --ring: 79 70 229;
+
+        --radius: 0.75rem;
+    }
+
+    .dark {
+        --background: 2 6 23;
+        /* Slate 950 */
+        --foreground: 248 250 252;
+
+        --card: 15 23 42;
+        /* Slate 900 */
+        --card-foreground: 248 250 252;
+
+        --popover: 15 23 42;
+        --popover-foreground: 248 250 252;
+
+        --primary: 99 102 241;
+        /* Indigo 500 */
+        --primary-foreground: 248 250 252;
+
+        --secondary: 30 41 59;
+        /* Slate 800 */
+        --secondary-foreground: 248 250 252;
+
+        --muted: 30 41 59;
+        --muted-foreground: 148 163 184;
+
+        --accent: 30 41 59;
+        --accent-foreground: 248 250 252;
+
+        --destructive: 127 29 29;
+        --destructive-foreground: 248 250 252;
+
+        --border: 30 41 59;
+        --input: 30 41 59;
+        --ring: 99 102 241;
+    }
+}
+
+@layer base {
+    body {
+        @apply bg-background text-foreground antialiased;
+        font-family: 'Inter', sans-serif;
+        font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        font-family: 'Outfit', sans-serif;
+    }
+}
+
+@layer components {
+
+    /* Enhanced Glass Utilities */
+    .glass {
+        @apply bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-sm;
+    }
+
+    .glass-card {
+        @apply bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-white/40 dark:border-white/5 shadow-xl shadow-black/5 rounded-xl transition-all duration-300;
+    }
+
+    .glass-panel {
+        @apply bg-white/80 dark:bg-slate-950/80 backdrop-blur-2xl border-r border-white/20 dark:border-white/5 shadow-2xl;
+    }
+
+    .glass-input {
+        @apply w-full px-4 py-2.5 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border border-slate-200/60 dark:border-slate-700/60 rounded-lg text-sm transition-all focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:focus:ring-indigo-500/20 outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500 dark:text-slate-100;
+    }
+
+    .glass-btn {
+        @apply bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-lg shadow-indigo-600/20 rounded-lg px-4 py-2.5 transition-all duration-300 active:scale-[0.98] border border-transparent hover:shadow-xl hover:shadow-indigo-600/30 flex items-center justify-center gap-2;
+    }
+
+    .glass-btn-secondary {
+        @apply bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium border border-slate-200 dark:border-slate-700 shadow-sm rounded-lg px-4 py-2.5 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2 backdrop-blur-sm;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        @apply bg-slate-200 dark:bg-slate-700 rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors;
+    }
+
+    /* Text Gradients */
+    .text-gradient {
+        @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400;
+    }
+}
+
+/* Animations */
+.fade-in {
+    animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+}
+
+.slide-up {
+    animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
