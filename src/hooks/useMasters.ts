@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { gsheet } from '../lib/gsheet';
 
 export interface ASM {
     ASM_ID: number;
     ASM_Code: string;
     ASM_Name: string;
+    Mobile: string;
     District: string;
     RSM_ID: number;
 }
@@ -12,6 +14,7 @@ export interface RSM {
     RSM_ID: number;
     RSM_Code: string;
     RSM_Name: string;
+    Mobile: string;
     Region: string;
 }
 
@@ -22,33 +25,31 @@ export function useMasters() {
     const [customerTypes, setCustomerTypes] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const [asm, rsm, complaints, custTypes] = await Promise.all([
+                gsheet.read('ASM_Master'),
+                gsheet.read('RSM_Master'),
+                gsheet.read('Complaint_Type_Master'),
+                gsheet.read('Customer_Type_Master')
+            ]);
+
+            setAsmList(asm);
+            setRsmList(rsm);
+            setComplaintTypeList(complaints);
+            setCustomerTypes(custTypes);
+
+        } catch (error) {
+            console.error('Error fetching masters:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                const headers = { 'Authorization': `Bearer ${token}` };
-
-                const [asmRes, rsmRes, complaintRes, custTypeRes] = await Promise.all([
-                    fetch('/api/masters/asm', { headers }),
-                    fetch('/api/masters/rsm', { headers }),
-                    fetch('/api/masters/complaint-type', { headers }),
-                    fetch('/api/masters/customer-type', { headers })
-                ]);
-
-                if (asmRes.ok) setAsmList(await asmRes.json());
-                if (rsmRes.ok) setRsmList(await rsmRes.json());
-                if (complaintRes.ok) setComplaintTypeList(await complaintRes.json());
-                if (custTypeRes.ok) setCustomerTypes(await custTypeRes.json());
-
-            } catch (error) {
-                console.error('Error fetching masters:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchData();
     }, []);
 
-    return { asmList, rsmList, complaintTypeList, customerTypes, loading };
+    return { asmList, rsmList, complaintTypeList, customerTypes, loading, refreshMasters: fetchData };
 }

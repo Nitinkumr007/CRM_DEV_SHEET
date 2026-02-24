@@ -35,6 +35,7 @@ export interface ASM {
     District: string;
     RSM_ID: number;
     RSM_NAME?: string;
+    Status_ID: number;
     Created_At?: string;
 }
 
@@ -59,4 +60,14 @@ export interface SystemUser {
     Status_ID: number;
     Created_At?: string;
     // Password is only for sending, never receiving
+}
+
+export interface WhatsAppTemplate {
+    Template_ID: number;
+    Template_Name: string;
+    Content: string;
+    Category: string;
+    Status_ID: number;
+    Created_At?: string;
+    Updated_At?: string;
 }

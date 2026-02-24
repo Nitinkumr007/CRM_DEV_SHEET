@@ -1,19 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Search, RefreshCw, Plus } from 'lucide-react';
 import { TicketList } from '../components/TicketList';
 import { KanbanBoard } from '../components/KanbanBoard';
 import { Drawer } from '../components/Drawer';
 import { TicketDetail } from '../components/TicketDetail';
 import { useTickets } from '../context/TicketContext';
 import { useSettings } from '../context/SettingsContext';
-import { useNavigate } from 'react-router-dom';
+import { useTabs } from '../context/TabContext';
 
 export default function Tickets() {
-    const { tickets } = useTickets();
+    const { tickets, refreshTickets, loading } = useTickets();
     const { settings } = useSettings();
-    const navigate = useNavigate();
+    const { updateTabPath, activeTabId } = useTabs();
     const [view, setView] = useState<'list' | 'kanban'>('list');
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+
+    const handleCreateNew = () => {
+        updateTabPath(activeTabId, '/tickets/new', 'New Ticket');
+    };
 
     // Sync view with settings when they load
     useEffect(() => {
@@ -44,23 +48,38 @@ export default function Tickets() {
     const selectedTicket = tickets.find(t => t.id === selectedTicketId) || null;
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Tickets</h1>
-                    <p className="text-slate-500 mt-1">Manage and track customer support requests.</p>
+        <div className="space-y-6 fade-in pb-10">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between w-full">
+                    <div>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight font-display">Tickets</h1>
+                            <button
+                                onClick={refreshTickets}
+                                disabled={loading}
+                                className="glass-btn-refresh group"
+                                title="Refresh Tickets"
+                            >
+                                <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin text-indigo-600' : 'group-hover:rotate-180 transition-transform duration-700'}`} />
+                            </button>
+                        </div>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Manage and track customer support requests.</p>
+                    </div>
+
+                    <div className="mt-4 md:mt-0">
+                        <button
+                            onClick={handleCreateNew}
+                            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 dark:shadow-none transition-all active:scale-95 group"
+                        >
+                            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                            <span>New Ticket</span>
+                        </button>
+                    </div>
                 </div>
-                <button
-                    onClick={() => navigate('/tickets/new')}
-                    className="glass-btn px-4 py-2.5 flex items-center gap-2 font-medium"
-                >
-                    <Plus className="w-4 h-4" />
-                    <span>New Ticket</span>
-                </button>
             </div>
 
             {/* Advanced Filter Bar */}
-            <div className="bg-white border border-slate-200/60 rounded-xl p-4 shadow-sm mb-6">
+            <div className="glass-card p-4 shadow-xl shadow-indigo-500/5 mb-6 border-slate-200/50 dark:border-slate-800/50">
                 <div className="flex flex-col md:flex-row gap-4 items-center">
                     <div className="relative flex-1 w-full">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -79,7 +98,7 @@ export default function Tickets() {
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none cursor-pointer hover:bg-slate-50 transition-colors bg-[length:16px_16px]"
+                            className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none cursor-pointer hover:bg-white dark:hover:bg-slate-800 transition-all appearance-none pr-8 bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20stroke%3D%22%236b7280%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%221.5%22%20d%3D%22m6%208%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-[position:right_0.5rem_center] bg-no-repeat"
                         >
                             <option value="">All Statuses</option>
                             <option value="open">Open</option>
@@ -89,7 +108,7 @@ export default function Tickets() {
                         <select
                             value={priorityFilter}
                             onChange={(e) => setPriorityFilter(e.target.value)}
-                            className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none cursor-pointer hover:bg-slate-50 transition-colors"
+                            className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none cursor-pointer hover:bg-white dark:hover:bg-slate-800 transition-all appearance-none pr-8 bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20stroke%3D%22%236b7280%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%221.5%22%20d%3D%22m6%208%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-[position:right_0.5rem_center] bg-no-repeat"
                         >
                             <option value="">All Priorities</option>
                             <option value="low">Low</option>
@@ -97,16 +116,16 @@ export default function Tickets() {
                             <option value="high">High</option>
                             <option value="urgent">Urgent</option>
                         </select>
-                        <div className="bg-slate-100 p-1 rounded-lg flex items-center border border-slate-200/50">
+                        <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex items-center border border-slate-200/50 dark:border-slate-700/50 ml-2">
                             <button
                                 onClick={() => setView('list')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all uppercase tracking-tight ${view === 'list' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                             >
                                 List
                             </button>
                             <button
                                 onClick={() => setView('kanban')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${view === 'kanban' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all uppercase tracking-tight ${view === 'kanban' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                             >
                                 Kanban
                             </button>

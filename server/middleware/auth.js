@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = 'your-secret-key-change-this-in-prod'; // Should match index.js
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); // It's in one level up from middleware/
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -17,10 +19,7 @@ const authenticateToken = (req, res, next) => {
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) {
             console.error("Token verification failed:", err.message);
-            // If token is invalid, also treat as guest or 403.
-            // Treating as guest for now to prevent hard breakage during migration
-            req.user = { User_ID: null, User_Code: 'INVALID_TOKEN', Role: 'Guest' };
-            return next();
+            return res.status(401).json({ message: 'Session expired. Please login again.' });
         }
 
         // Map token payload to req.user
@@ -32,7 +31,8 @@ const authenticateToken = (req, res, next) => {
         // Let's stick with what we have. User_ID is crucial. User_Code we can try to look up or ignore if missing.
         // Wait, I can update the login token generation to include code!
         req.user = user;
-        req.user.User_ID = user.id; // Map for consistency
+        req.user.User_ID = user.id;
+        req.user.User_Code = user.code; // Added mapping
         next();
     });
 };

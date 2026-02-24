@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import type { User } from '../types/ticket';
+import { gsheet } from '../lib/gsheet';
 
 interface AuthContextType {
     user: User | null;
@@ -29,45 +30,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const login = async (userCode: string, password: string) => {
         try {
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ userCode, password }),
-            });
+            // Path: src/context/AuthContext.tsx
+            // Direct query to User_Master for authentication
+            const query = 'SELECT * FROM User_Master WHERE User_Code = @userCode';
+            const result = await gsheet.query(query, { userCode });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Login failed');
+            if (result.recordset && result.recordset.length > 0) {
+                const dbUser = result.recordset[0];
+
+                // For direct-sheet version, we do a basic password check.
+                const userPassword = dbUser.Password || dbUser.Password_Hash;
+                if (String(userPassword) === password) {
+                    const userData: User = {
+                        id: dbUser.User_ID,
+                        name: dbUser.Full_Name,
+                        role: dbUser.Role || 'User',
+                        avatar: `https://ui-avatars.com/api/?name=${dbUser.Full_Name}&background=random`
+                    };
+
+                    setUser(userData);
+                    localStorage.setItem('user', JSON.stringify(userData));
+                    localStorage.setItem('token', 'direct_access_mode');
+                } else {
+                    throw new Error('Invalid password');
+                }
+            } else {
+                throw new Error('User not found');
             }
-
-            const data = await response.json();
-            const { user, token } = data;
-
-            // Add token to user object or store separately if needed
-            // For now, storing user in state and local storage as before
-            const userWithToken = { ...user, token };
-
-            setUser(userWithToken);
-            localStorage.setItem('user', JSON.stringify(userWithToken));
-            localStorage.setItem('token', token); // Store token separately for API calls
-        } catch (error) {
+        } catch (error: any) {
             console.error('Login error:', error);
             throw error;
         }
     };
 
     const logout = () => {
-        // Call Logout API to record logout time
-        if (user && user.id) {
-            fetch('/api/logout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: user.id })
-            }).catch(err => console.error('Logout API Error:', err));
-        }
-
         setUser(null);
         localStorage.removeItem('user');
         localStorage.removeItem('token');

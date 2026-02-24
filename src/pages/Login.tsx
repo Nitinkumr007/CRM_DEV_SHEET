@@ -55,21 +55,23 @@ export default function Login() {
         }
 
         try {
-            const response = await fetch('/api/reset-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userCode: resetCode,
-                    mobile: resetMobile,
-                    newPassword
-                })
-            });
+            const { gsheet } = await import('../lib/gsheet');
+            // Path: src/pages/Login.tsx
+            // Verify user exists and mobile matches before reset
+            const checkSql = `SELECT User_ID FROM User_Master WHERE User_Code = @code AND Mobile = @mobile`;
+            const checkResult = await gsheet.query(checkSql, { code: resetCode, mobile: resetMobile });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to reset password');
+            if (!checkResult.recordset || checkResult.recordset.length === 0) {
+                throw new Error('User not found or mobile number mismatch');
             }
+
+            const userId = checkResult.recordset[0].User_ID;
+
+            // Update password
+            await gsheet.query(`UPDATE User_Master SET Password = @newPassword WHERE User_ID = @id`, {
+                newPassword,
+                id: userId
+            });
 
             setResetSuccess('Password reset successful! You can now login.');
 
@@ -92,9 +94,78 @@ export default function Login() {
     return (
         <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-500">
             {/* Ambient Background */}
-            <div className="absolute inset-0 z-0 pointer-events-none">
-                <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-500/20 dark:bg-indigo-500/10 blur-[120px] animate-pulse" />
-                <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-500/20 dark:bg-blue-500/10 blur-[120px] animate-pulse delay-700" />
+            <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+                {/* Large Background Blobs - High opacity for visibility */}
+                <motion.div
+                    animate={{
+                        x: [0, 100, 0],
+                        y: [0, 50, 0],
+                        scale: [1, 1.2, 1],
+                    }}
+                    transition={{
+                        duration: 20,
+                        repeat: Infinity,
+                        ease: "linear"
+                    }}
+                    className="absolute top-[-15%] left-[-15%] w-[60%] h-[60%] rounded-full bg-indigo-500/30 dark:bg-indigo-600/20 blur-[80px]"
+                />
+                <motion.div
+                    animate={{
+                        x: [0, -80, 0],
+                        y: [0, 100, 0],
+                        scale: [1, 1.1, 1],
+                    }}
+                    transition={{
+                        duration: 15,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: 2
+                    }}
+                    className="absolute bottom-[-10%] right-[-10%] w-[55%] h-[55%] rounded-full bg-blue-500/25 dark:bg-blue-600/20 blur-[100px]"
+                />
+
+                {/* Mid-sized Floating Elements */}
+                <motion.div
+                    animate={{
+                        y: [0, -120, 0],
+                        x: [0, 50, 0],
+                        rotate: [0, 180, 360],
+                    }}
+                    transition={{
+                        duration: 25,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                    }}
+                    className="absolute top-[20%] right-[10%] w-[30%] h-[30%] rounded-full bg-purple-500/20 dark:bg-purple-600/15 blur-[60px]"
+                />
+
+                {/* Accent Blobs - Breathing */}
+                <motion.div
+                    animate={{
+                        scale: [0.8, 1.3, 0.8],
+                        opacity: [0.3, 0.7, 0.3]
+                    }}
+                    transition={{
+                        duration: 10,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                    }}
+                    className="absolute top-[40%] left-[10%] w-[200px] h-[200px] rounded-full bg-sky-400/30 dark:bg-sky-500/20 blur-[50px]"
+                />
+
+                <motion.div
+                    animate={{
+                        scale: [1, 1.4, 1],
+                        opacity: [0.2, 0.5, 0.2]
+                    }}
+                    transition={{
+                        duration: 12,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: 4
+                    }}
+                    className="absolute bottom-[20%] left-[20%] w-[150px] h-[150px] rounded-full bg-pink-400/25 dark:bg-pink-500/20 blur-[40px]"
+                />
             </div>
 
             {/* Theme Toggle Absolute Position */}

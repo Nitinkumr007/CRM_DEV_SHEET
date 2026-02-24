@@ -1,12 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Ticket } from '../types/ticket';
+import { gsheet } from '../lib/gsheet';
 
 interface TicketContextType {
     tickets: Ticket[];
     loading: boolean;
     refreshTickets: () => void;
-    addTicket: (ticket: any) => Promise<any>;
+    addTicket: (ticket: Partial<Ticket>) => Promise<any>;
     updateTicket: (id: string, updates: Partial<Ticket>) => Promise<void>;
     deleteTicket: (id: string) => Promise<void>;
 }
@@ -20,78 +21,97 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
     const fetchTickets = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/tickets', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            // Map DB fields to Frontend Type if needed, or adjust Type
-            // Assuming DB returns compatible structure or we adjust here
-            // Simple mapping for now:
-            const mappedTickets: Ticket[] = data.map((t: any) => ({
-                id: String(t.Ticket_ID), // Internal ID used for logic
-                ticketNo: t.Ticket_No, // Display ID
-                title: t.Subject,
-                description: t.Description,
-                status: (t.Status?.toLowerCase() || 'open') as any,
-                priority: (t.Priority?.toLowerCase() || 'medium') as any,
-                createdAt: t.Created_At,
-                updatedAt: t.Updated_At || t.Created_At,
-                customer: {
-                    id: String(t.customer_id || t.Ticket_ID), // Fallback if customer_id missing
-                    name: t.Customer_Name || 'Unknown Customer',
-                    role: t.customer_type || t.customer_types || 'customer', // Map actual type
-                    avatar: `https://ui-avatars.com/api/?name=${t.Customer_Name || 'User'}&background=random`
-                },
-                assignedTo: t.Assigned_To ? {
-                    id: String(t.Assigned_To),
-                    name: t.Assigned_User || 'Agent',
-                    role: 'admin',
-                    avatar: `https://ui-avatars.com/api/?name=${t.Assigned_User || 'Agent'}&background=random`
-                } : undefined,
-                createdBy: t.Created_By ? {
-                    id: String(t.Created_By),
-                    name: t.Creator_Name || 'Admin',
-                    role: 'admin',
-                    avatar: `https://ui-avatars.com/api/?name=${t.Creator_Name || 'Admin'}&background=random`
-                } : undefined,
-                tags: t.Complaint_Type ? [t.Complaint_Type] : [], // Use complaint type as a tag
+            // 1. Fetch tables
+            const [rawTickets, users, complaints, customers, asms, rsms] = await Promise.all([
+                gsheet.read('Ticket_Master'),
+                gsheet.read('User_Master'),
+                gsheet.read('Complaint_Type_Master'),
+                gsheet.read('customers_profile'),
+                gsheet.read('ASM_Master'),
+                gsheet.read('RSM_Master')
+            ]);
 
-                // Detailed Schema Fields
-                complaintTypeId: t.Complaint_Type_ID,
-                complaintType: t.Complaint_Type, // Joined name
+            // 2. Create Maps for faster lookups O(1) instead of O(N)
+            const userMap = new Map(users.map((u: any) => [String(u.User_ID), u]));
+            const complaintMap = new Map(complaints.map((ct: any) => [String(ct.Complaint_Type_ID), ct]));
+            const customerMap = new Map(customers.map((c: any) => [String(c.Customer_ID), c]));
+            const asmMap = new Map(asms.map((a: any) => [a.ASM_Name, a]));
+            const rsmMap = new Map(rsms.map((r: any) => [r.RSM_Name, r]));
 
-                asm: t.asm || t.asm_name, // Handle possible duplicate columns
-                asm_name: t.asm_name || t.asm,
-                rsm: t.rsm || t.rsm_name,
-                rsm_name: t.rsm_name || t.rsm,
-                customer_type: t.customer_type || t.customer_types,
-                customer_types: t.customer_types || t.customer_type,
-                customer_number: t.customer_number || t.customer_numbers,
-                phoneNumber: t.customer_number || t.customer_numbers, // Map to generic field
-                customer_address: t.customer_address || t.customers_address,
-                location: t.customer_address || t.customers_address, // Map to generic field
-                priority_level: t.priority_level,
-                sla_hours: t.sla_hours || t.sla_hour,
-                customer_id: t.customer_id,
-                pincode: t.pincode,
-                city_name: t.city_name,
+            // 3. Perform Join
+            const mappedTickets: Ticket[] = rawTickets.map((t: any): Ticket => {
+                const assignedUser = userMap.get(String(t.Assigned_To));
+                const creator = userMap.get(String(t.Created_By));
+                const complaintType = complaintMap.get(String(t.Complaint_Type_ID));
+                const customerProfile = customerMap.get(String(t.Customer_ID));
 
-                // Closing Details
-                closingRemarks: t.Closing_Remarks,
-                closedBy: t.Closed_By_Name || t.Closed_By, // Assuming backend joins or we use ID for now. 
-                // Wait, I need to check if backend joins Closed_By to get name.
-                // In tickets.js GET /, I need to check if I joined Closed_By. 
-                // Query was: 
-                // LEFT JOIN User_Master u ON t.Assigned_To = u.User_ID
-                // LEFT JOIN User_Master creator ON t.Created_By = creator.User_ID
-                // It does NOT join Closed_By.
-                // I should update backend to join Closed_By to get name, OR just show ID for now. 
-                // User asked to show "Closed by [Name]".
-                // So I should update backend GET / and GET /customer/:id to join for Closed_By_Name.
-                // For now, I'll map what I can.
-                closedAt: t.Closed_At
-            }));
+                const asm = asmMap.get(t.ASM_Name);
+                const rsm = rsmMap.get(t.RSM_Name);
+
+                const customerNum = t.customer_number || t.phoneNumber || t.Mobile || '';
+                const customerName = customerProfile?.Customer_Name || t.customer_name || 'Unknown';
+
+                // Safe date parsing helper
+                const parseSafeDate = (val: any) => {
+                    if (!val) return undefined;
+                    const d = new Date(val);
+                    return isNaN(d.getTime()) ? undefined : d.toISOString();
+                };
+
+                const createdAt = parseSafeDate(t.Created_At) || new Date().toISOString();
+                const updatedAt = parseSafeDate(t.Updated_At) || createdAt;
+                const closedAt = parseSafeDate(t.Closed_At);
+
+                const status = String(t.Status || 'open').toLowerCase().replace(' ', '-') as any;
+                const priority = String(t.Priority || 'medium').toLowerCase() as any;
+
+                return {
+                    id: String(t.Ticket_ID || t.id || ''),
+                    ticketNo: String(t.Ticket_No || t.ticketNo || `T-${String(t.Ticket_ID).slice(-5)}`),
+                    title: String(t.Subject || t.title || 'No Subject'),
+                    description: String(t.Description || t.description || ''),
+                    status,
+                    priority,
+                    customer: {
+                        id: String(t.Customer_ID || ''),
+                        name: customerName,
+                        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(customerName)}&background=random`,
+                        role: 'customer'
+                    },
+                    assignedTo: assignedUser ? {
+                        id: String(assignedUser.User_ID),
+                        name: String(assignedUser.Full_Name),
+                        role: (String(assignedUser.Role).toLowerCase() === 'admin' ? 'admin' : 'agent'),
+                        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(assignedUser.Full_Name)}&background=random`
+                    } : undefined,
+                    createdBy: creator ? {
+                        id: String(creator.User_ID),
+                        name: String(creator.Full_Name),
+                        role: (String(creator.Role).toLowerCase() === 'admin' ? 'admin' : 'agent'),
+                        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.Full_Name)}&background=random`
+                    } : undefined,
+                    createdAt,
+                    updatedAt,
+                    tags: complaintType ? [complaintType.Complaint_Name] : [],
+                    complaintTypeId: t.Complaint_Type_ID,
+                    complaintType: complaintType ? complaintType.Complaint_Name : t.Complaint_Type,
+                    asm_name: t.ASM_Name,
+                    rsm_name: t.RSM_Name,
+                    asm_mobile: asm?.Mobile || t.asm_mobile || '',
+                    rsm_mobile: rsm?.Mobile || t.rsm_mobile || '',
+                    customer_number: String(t.Customer_Number || customerNum),
+                    phoneNumber: String(customerNum),
+                    customer_address: t.Customer_Address || customerProfile?.Customer_Address,
+                    location: t.Customer_Address || customerProfile?.Customer_Address,
+                    sla_hours: t.sla_hours,
+                    customer_id: t.Customer_ID,
+                    pincode: t.pincode,
+                    city_name: t.city_name,
+                    closingRemarks: t.Closing_Remarks,
+                    closedBy: t.Closed_By_Name,
+                    closedAt
+                };
+            }).filter(t => t.id);
             setTickets(mappedTickets);
         } catch (err) {
             console.error('Failed to fetch tickets', err);
@@ -108,35 +128,39 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
 
     const addTicket = async (ticketData: any) => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/tickets', {
+            const response = await fetch('/api/tickets', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(ticketData)
             });
-            const data = await res.json();
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to add ticket');
+            }
+
+            const data = await response.json();
             fetchTickets();
             return data;
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error adding ticket', err);
-            return null;
+            throw err;
         }
     };
 
-    const updateTicket = async (id: string, updates: Partial<Ticket>) => {
+    const updateTicket = async (id: string, updates: any) => {
         try {
-            const token = localStorage.getItem('token');
-            await fetch(`/api/tickets/${id}`, {
+            const response = await fetch(`/api/tickets/${id}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updates)
             });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to update ticket');
+            }
+
             fetchTickets();
         } catch (err) {
             console.error('Error updating ticket', err);
@@ -145,11 +169,8 @@ export function TicketProvider({ children }: { children: React.ReactNode }) {
 
     const deleteTicket = async (id: string) => {
         try {
-            const token = localStorage.getItem('token');
-            await fetch(`/api/tickets/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const query = 'DELETE FROM Ticket_Master WHERE Ticket_ID = @id';
+            await gsheet.query(query, { id });
             fetchTickets();
         } catch (err) {
             console.error('Error deleting ticket', err);

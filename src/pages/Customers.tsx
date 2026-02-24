@@ -10,9 +10,11 @@ interface Customer {
     Customer_Number: string;
     Customer_Address: string;
     Customer_Type_ID: number;
-    customer_statu: string;
+    Customer_Status: string;
     Created_At: string;
     Customer_Type_Name_Joined?: string;
+    city_name?: string;
+    pincode?: string;
 }
 
 export default function Customers() {
@@ -25,7 +27,6 @@ export default function Customers() {
     // Drawer State
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [currentCustomer, setCurrentCustomer] = useState<Customer | null>(null);
-    const [formData, setFormData] = useState<any>({});
 
     useEffect(() => {
         fetchData();
@@ -35,12 +36,23 @@ export default function Customers() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/customers', {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const { gsheet } = await import('../lib/gsheet');
+            // Manual Join Implementation (Safe for GSheet architecture)
+            const [customers, types] = await Promise.all([
+                gsheet.read('customers_profile'),
+                gsheet.read('Customer_Type_Master')
+            ]);
+
+            const mapped: Customer[] = customers.map((c: any) => {
+                const type = types.find((t: any) => t.Customer_Type_ID == c.Customer_Type_ID);
+                return {
+                    ...c,
+                    Customer_Status: c.Customer_Status || c.customer_statu || 'Active',
+                    Customer_Type_Name_Joined: type ? type.Customer_Type_Name : 'Unknown'
+                };
             });
-            const json = await res.json();
-            setData(json);
+
+            setData(mapped);
         } catch (err) {
             console.error('Error fetching customers:', err);
         } finally {
@@ -50,87 +62,78 @@ export default function Customers() {
 
     const fetchCustomerTypes = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/masters/customer-type', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const json = await res.json();
-                setCustomerTypes(json);
-            }
-            // For safety, I'll add a specific fetch logic or check backend first.
-            // Actually, I missed adding Customer Type to Masters.tsx tabs?
-            // User didn't ask for it in Masters, but needed for Tickets.
-            // I'll assume /api/masters/customer-type exists or I will create it. 
-            // Let's look at server/masters.js again to be sure.
+            const { gsheet } = await import('../lib/gsheet');
+            const types = await gsheet.read('Customer_Type_Master');
+            setCustomerTypes(types);
         } catch (err) { console.error(err); }
     };
 
-    // TEMPORARY: I will use a direct fetch to a new endpoint I'll ensure exists.
-    // For now, let's write the component assuming the endpoint works.
-
     const handleCreate = () => {
         setCurrentCustomer(null);
-        setFormData({ status: 'Active' });
         setIsDrawerOpen(true);
     };
 
     const handleEdit = (item: Customer) => {
         setCurrentCustomer(item);
-        setFormData({
-            name: item.Customer_Name,
-            phone: item.Customer_Number,
-            address: item.Customer_Address,
-            customerTypeId: item.Customer_Type_ID,
-            status: item.customer_statu
-        });
         setIsDrawerOpen(true);
     };
 
     const handleDelete = async (id: number) => {
         if (!confirm('Are you sure you want to delete this customer?')) return;
         try {
-            const token = localStorage.getItem('token');
-            await fetch(`/api/customers/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const { gsheet } = await import('../lib/gsheet');
+            await gsheet.query(`DELETE FROM customers_profile WHERE Customer_ID = @id`, { id });
             fetchData();
         } catch (err) {
             console.error('Error deleting:', err);
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        const url = `/api/customers` + (currentCustomer ? `/${currentCustomer.Customer_ID}` : '');
-        const method = currentCustomer ? 'PUT' : 'POST';
+        const form = e.currentTarget;
+        const formDataObj = new FormData(form);
+        const { gsheet } = await import('../lib/gsheet');
 
         try {
-            const token = localStorage.getItem('token');
             const payload = {
-                name: formData.name,
-                phone: formData.phone,
-                address: formData.address,
-                customerTypeId: formData.customerTypeId,
-                status: formData.status
+                customerName: formDataObj.get('name'),
+                customerNumber: formDataObj.get('phone'),
+                customerAddress: formDataObj.get('address'),
+                customerTypeId: formDataObj.get('customerTypeId'),
+                customerStatus: formDataObj.get('status'),
+                cityName: formDataObj.get('city'),
+                pincode: formDataObj.get('pincode')
             };
-            const res = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(payload)
-            });
-            if (res.ok) {
-                setIsDrawerOpen(false);
-                fetchData();
+
+            if (currentCustomer) {
+                await gsheet.query(`
+                    UPDATE customers_profile SET 
+                        Customer_Name = @customerName, 
+                        Customer_Number = @customerNumber, 
+                        Customer_Address = @customerAddress, 
+                        Customer_Type_ID = @customerTypeId, 
+                        Customer_Status = @customerStatus, 
+                        city_name = @cityName, 
+                        pincode = @pincode 
+                    WHERE Customer_ID = @id
+                `, { ...payload, id: currentCustomer.Customer_ID });
             } else {
-                alert('Failed to save');
+                await gsheet.query(`
+                    INSERT INTO customers_profile (
+                        Customer_Name, Customer_Number, Customer_Address, 
+                        Customer_Type_ID, Customer_Status, city_name, pincode
+                    ) VALUES (
+                        @customerName, @customerNumber, @customerAddress, 
+                        @customerTypeId, @customerStatus, @cityName, @pincode
+                    )
+                `, payload);
             }
+            setIsDrawerOpen(false);
+            fetchData();
         } catch (err) {
-            console.error('Error saving:', err); // Moved this line to the correct place
+            console.error('Error saving:', err);
+            alert('Failed to save customer');
         }
     };
 
@@ -141,7 +144,7 @@ export default function Customers() {
             item.Customer_Name.toLowerCase().includes(lowerQuery) ||
             (item.Customer_Number && item.Customer_Number.toLowerCase().includes(lowerQuery)) ||
             (item.Customer_Type_Name_Joined && item.Customer_Type_Name_Joined.toLowerCase().includes(lowerQuery)) ||
-            (item.customer_statu && item.customer_statu.toLowerCase().includes(lowerQuery))
+            (item.Customer_Status && item.Customer_Status.toLowerCase().includes(lowerQuery))
         );
         setFilteredData(filtered);
     }, [searchQuery, data]);
@@ -159,11 +162,11 @@ export default function Customers() {
             )
         },
         {
-            header: 'Status', accessorKey: 'customer_statu',
+            header: 'Status', accessorKey: 'Customer_Status',
             cell: (item) => (
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${item.customer_statu === 'Active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${item.Customer_Status === 'Active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
                     }`}>
-                    {item.customer_statu}
+                    {item.Customer_Status}
                 </span>
             )
         },
@@ -284,17 +287,38 @@ export default function Customers() {
                             <textarea
                                 name="address"
                                 defaultValue={currentCustomer?.Customer_Address}
-                                rows={3}
+                                rows={2}
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none"
                                 placeholder="Enter full address"
                             />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
+                                <input
+                                    name="city"
+                                    defaultValue={currentCustomer?.city_name}
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                    placeholder="Enter city"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Pincode</label>
+                                <input
+                                    name="pincode"
+                                    defaultValue={currentCustomer?.pincode}
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                    placeholder="6-digit pincode"
+                                />
+                            </div>
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                             <select
                                 name="status"
-                                defaultValue={currentCustomer?.customer_statu || 'Active'}
+                                defaultValue={currentCustomer?.Customer_Status || 'Active'}
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                             >
                                 <option value="Active">Active</option>

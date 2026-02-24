@@ -3,7 +3,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { Calendar, Search, Download, FileText, Users } from 'lucide-react';
+import { Calendar, Search, Download, FileText, Users, Shield, Workflow, UserCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTickets } from '../context/TicketContext';
 // import {
@@ -57,17 +57,22 @@ export default function Reports() {
     const [loginLogs, setLoginLogs] = useState<LoginLog[]>(initialLoginLogs);
 
     useEffect(() => {
+        const fetchPerformance = async () => {
+            const { getUserPerformance } = await import('../lib/stats');
+            const data = await getUserPerformance();
+            setPerformanceData(data);
+        };
+        const fetchSLA = async () => {
+            const { getSlaCompliance } = await import('../lib/stats');
+            const data = await getSlaCompliance();
+            setSlaData(data);
+        };
+
         if (activeTab === 'performance') {
-            fetch('/api/reports-analytics/user-performance')
-                .then(res => res.json())
-                .then(data => setPerformanceData(data))
-                .catch(err => console.error('Error fetching performance:', err));
+            fetchPerformance().catch(err => console.error('Error fetching performance:', err));
         }
         if (activeTab === 'sla') {
-            fetch('/api/reports-analytics/sla-status')
-                .then(res => res.json())
-                .then(data => setSlaData(data))
-                .catch(err => console.error('Error fetching SLA:', err));
+            fetchSLA().catch(err => console.error('Error fetching SLA:', err));
         }
     }, [activeTab]);
 
@@ -136,11 +141,9 @@ export default function Reports() {
     useEffect(() => {
         const fetchLoginLogs = async () => {
             try {
-                const response = await fetch('/api/reports/login-log');
-                if (response.ok) {
-                    const data = await response.json();
-                    setLoginLogs(data);
-                }
+                const { gsheet } = await import('../lib/gsheet');
+                const data = await gsheet.read('Login_Log');
+                setLoginLogs(data);
             } catch (error) {
                 console.error('Error fetching login logs:', error);
             }
@@ -612,8 +615,10 @@ export default function Reports() {
 
                                 <div className="space-y-3">
                                     <button
-                                        onClick={() => {
-                                            fetch('/api/customers').then(res => res.json()).then(data => downloadExcel(data, 'Customer_Master'));
+                                        onClick={async () => {
+                                            const { gsheet } = await import('../lib/gsheet');
+                                            const data = await gsheet.read('customers_profile');
+                                            downloadExcel(data, 'Customer_Master');
                                         }}
                                         className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-white hover:shadow-md border border-slate-200 rounded-xl transition-all group"
                                     >
@@ -630,9 +635,10 @@ export default function Reports() {
                                     </button>
 
                                     <button
-                                        onClick={() => {
-                                            // Assuming endpoint exists or we fetch via existing hook
-                                            fetch('/api/tickets').then(res => res.json()).then(data => downloadExcel(data, 'All_Tickets'));
+                                        onClick={async () => {
+                                            const { gsheet } = await import('../lib/gsheet');
+                                            const data = await gsheet.read('Ticket_Master');
+                                            downloadExcel(data, 'All_Tickets');
                                         }}
                                         className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-white hover:shadow-md border border-slate-200 rounded-xl transition-all group"
                                     >
@@ -646,6 +652,86 @@ export default function Reports() {
                                             </div>
                                         </div>
                                         <Download className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                                    </button>
+
+                                    <button
+                                        onClick={async () => {
+                                            const { gsheet } = await import('../lib/gsheet');
+                                            const data = await gsheet.read('ASM_Master');
+                                            downloadExcel(data, 'ASM_Master');
+                                        }}
+                                        className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-white hover:shadow-md border border-slate-200 rounded-xl transition-all group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center">
+                                                <Shield className="w-5 h-5" />
+                                            </div>
+                                            <div className="text-left">
+                                                <div className="font-semibold text-slate-800">ASM Master</div>
+                                                <div className="text-xs text-slate-500">Area Sales Managers listing</div>
+                                            </div>
+                                        </div>
+                                        <Download className="w-5 h-5 text-slate-400 group-hover:text-orange-600 transition-colors" />
+                                    </button>
+
+                                    <button
+                                        onClick={async () => {
+                                            const { gsheet } = await import('../lib/gsheet');
+                                            const data = await gsheet.read('RSM_Master');
+                                            downloadExcel(data, 'RSM_Master');
+                                        }}
+                                        className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-white hover:shadow-md border border-slate-200 rounded-xl transition-all group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center">
+                                                <Workflow className="w-5 h-5" />
+                                            </div>
+                                            <div className="text-left">
+                                                <div className="font-semibold text-slate-800">RSM Master</div>
+                                                <div className="text-xs text-slate-500">Regional Sales Managers listing</div>
+                                            </div>
+                                        </div>
+                                        <Download className="w-5 h-5 text-slate-400 group-hover:text-purple-600 transition-colors" />
+                                    </button>
+
+                                    <button
+                                        onClick={async () => {
+                                            const { gsheet } = await import('../lib/gsheet');
+                                            const data = await gsheet.read('Complaint_Type_Master');
+                                            downloadExcel(data, 'Complaint_Type_Master');
+                                        }}
+                                        className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-white hover:shadow-md border border-slate-200 rounded-xl transition-all group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-lg bg-red-100 text-red-600 flex items-center justify-center">
+                                                <FileText className="w-5 h-5" />
+                                            </div>
+                                            <div className="text-left">
+                                                <div className="font-semibold text-slate-800">Complaint Type Master</div>
+                                                <div className="text-xs text-slate-500">Types of complaints and SLA</div>
+                                            </div>
+                                        </div>
+                                        <Download className="w-5 h-5 text-slate-400 group-hover:text-red-600 transition-colors" />
+                                    </button>
+
+                                    <button
+                                        onClick={async () => {
+                                            const { gsheet } = await import('../lib/gsheet');
+                                            const data = await gsheet.read('User_Master');
+                                            downloadExcel(data, 'User_Master');
+                                        }}
+                                        className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-white hover:shadow-md border border-slate-200 rounded-xl transition-all group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-lg bg-green-100 text-green-600 flex items-center justify-center">
+                                                <UserCheck className="w-5 h-5" />
+                                            </div>
+                                            <div className="text-left">
+                                                <div className="font-semibold text-slate-800">User Master</div>
+                                                <div className="text-xs text-slate-500">System users and roles</div>
+                                            </div>
+                                        </div>
+                                        <Download className="w-5 h-5 text-slate-400 group-hover:text-green-600 transition-colors" />
                                     </button>
                                 </div>
                             </div>

@@ -20,25 +20,26 @@ router.get('/search', async (req, res) => {
         if (!q) return res.status(400).json({ message: 'Query parameter required' });
 
         const pool = await connectToDb();
-        const result = await pool.request()
-            .input('searchParam', `%${q}%`)
-            .query(`
-                SELECT 
-                    c.Customer_ID,
-                    c.Customer_Name,
-                    c.Customer_Number,
-                    c.Customer_Address,
-                    c.Customer_Type_ID,
-                    c.customer_statu, -- Fixed column name
-                    c.pincode,
-                    c.city_name,
-                    ct.Customer_Type_Name
-                FROM customers_profile c
-                LEFT JOIN Customer_Type_Master ct ON c.Customer_Type_ID = ct.Customer_Type_ID
-                WHERE c.Customer_Number LIKE @searchParam OR c.Customer_Name LIKE @searchParam
-            `);
+        const [customersRes, typesRes] = await Promise.all([
+            pool.request().query('SELECT * FROM customers_profile'),
+            pool.request().query('SELECT * FROM Customer_Type_Master')
+        ]);
 
-        res.json(result.recordset);
+        const customers = customersRes.recordset;
+        const types = typesRes.recordset;
+
+        const filtered = customers.filter(c =>
+            (c.Customer_Number && c.Customer_Number.toString().includes(q)) ||
+            (c.Customer_Name && c.Customer_Name.toLowerCase().includes(q.toLowerCase()))
+        ).map(c => {
+            const type = types.find(t => t.Customer_Type_ID == c.Customer_Type_ID);
+            return {
+                ...c,
+                Customer_Type_Name: type ? type.Customer_Type_Name : c.Customer_type
+            };
+        });
+
+        res.json(filtered);
     } catch (err) { handleError(res, err, 'Error searching customers'); }
 });
 
@@ -46,32 +47,39 @@ router.get('/search', async (req, res) => {
 router.get('/', async (req, res) => {
     try {
         const pool = await connectToDb();
-        const result = await pool.request().query(`
-            SELECT 
-                c.Customer_ID,
-                c.Customer_Name,
-                c.Customer_Number,
-                c.Customer_Address,
-                c.Customer_Type_ID,
-                c.customer_statu,
-                c.tickets_count,
-                c.Created_At,
-                c.Updated_At,
-                c.pincode,
-                c.city_name,
-                ct.Customer_Type_Name as Customer_Type_Name_Joined
-            FROM customers_profile c
-            LEFT JOIN Customer_Type_Master ct ON c.Customer_Type_ID = ct.Customer_Type_ID
-            ORDER BY c.Created_At DESC
-        `);
-        res.json(result.recordset);
+        const [customersRes, typesRes] = await Promise.all([
+            pool.request().query('SELECT * FROM customers_profile'),
+            pool.request().query('SELECT * FROM Customer_Type_Master')
+        ]);
+
+        const customers = customersRes.recordset;
+        const types = typesRes.recordset;
+
+        const enriched = customers.map(c => {
+            const type = types.find(t => t.Customer_Type_ID == c.Customer_Type_ID);
+            return {
+                ...c,
+                Customer_Type_Name_Joined: type ? type.Customer_Type_Name : c.Customer_type
+            };
+        });
+
+        // Sort by Created_At DESC
+        enriched.sort((a, b) => new Date(b.Created_At || 0) - new Date(a.Created_At || 0));
+
+        res.json(enriched);
     } catch (err) { handleError(res, err, 'Error fetching customers'); }
 });
 
 // CREATE Customer
 router.post('/', async (req, res) => {
-    const { customerName, customerNumber, customerAddress, customerTypeId, customerStatus, pincode, cityName } = req.body;
     try {
+        const { customerName, customerNumber, customerAddress, customerTypeId, customerStatus, pincode, cityName } = req.body;
+
+        // Validation
+        if (!customerName || !customerNumber || !customerTypeId || !cityName || !pincode) {
+            return res.status(400).json({ message: 'Name, Number, Type, City, and Pincode are mandatory' });
+        }
+
         const pool = await connectToDb();
 
         // Check if customer with same number already exists
@@ -102,11 +110,12 @@ router.post('/', async (req, res) => {
             .input('status', customerStatus || 'Active')
             .input('pin', pincode)
             .input('city', cityName)
+            .input('tcount', 0)
             .query(`INSERT INTO customers_profile 
-                    (Customer_Name, Customer_type, Customer_Number, Customer_Address, Customer_Type_ID, customer_statu, pincode, city_name, Created_At, Updated_At)
+                    (Customer_Name, Customer_type, Customer_Number, Customer_Address, Customer_Type_ID, customer_statu, pincode, city_name, tickets_count, Created_At, Updated_At)
                     OUTPUT INSERTED.Customer_ID
                     VALUES 
-                    (@name, @type, @number, @addr, @tid, @status, @pin, @city, GETDATE(), GETDATE());`);
+                    (@name, @type, @number, @addr, @tid, @status, @pin, @city, @tcount, GETDATE(), GETDATE());`);
 
         const newCustomerId = result.recordset[0].Customer_ID;
 

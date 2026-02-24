@@ -159,7 +159,10 @@ router.get('/asm', async (req, res) => {
 
 // CREATE ASM
 router.post('/asm', async (req, res) => {
-    const { asmCode, asmName, mobile, email, district, rsmId } = req.body;
+    const { asmCode, asmName, mobile, email, district } = req.body;
+    const rsmId = parseInt(req.body.rsmId);
+    const statusId = parseInt(req.body.statusId) || 1;
+
     try {
         const pool = await connectToDb();
 
@@ -178,8 +181,9 @@ router.post('/asm', async (req, res) => {
             .input('district', district)
             .input('rsmId', rsmId)
             .input('rsmName', rsmName)
-            .query(`INSERT INTO ASM_Master (ASM_Code, ASM_Name, Mobile, Email, District, RSM_ID, RSM_NAME, Created_At) 
-                    VALUES (@code, @name, @mobile, @email, @district, @rsmId, @rsmName, GETDATE())`);
+            .input('statusId', statusId)
+            .query(`INSERT INTO ASM_Master (ASM_Code, ASM_Name, Mobile, Email, District, RSM_ID, RSM_NAME, Status_ID, Created_At) 
+                    VALUES (@code, @name, @mobile, @email, @district, @rsmId, @rsmName, @statusId, GETDATE())`);
         res.json({ message: 'ASM created successfully' });
     } catch (err) { handleError(res, err, 'Error creating ASM'); }
 });
@@ -187,7 +191,10 @@ router.post('/asm', async (req, res) => {
 // UPDATE ASM
 router.put('/asm/:id', async (req, res) => {
     const { id } = req.params;
-    const { asmCode, asmName, mobile, email, district, rsmId } = req.body;
+    const { asmCode, asmName, mobile, email, district } = req.body;
+    const rsmId = parseInt(req.body.rsmId);
+    const statusId = parseInt(req.body.statusId) || 1;
+
     try {
         const pool = await connectToDb();
 
@@ -207,9 +214,10 @@ router.put('/asm/:id', async (req, res) => {
             .input('district', district)
             .input('rsmId', rsmId)
             .input('rsmName', rsmName)
+            .input('statusId', statusId)
             .query(`UPDATE ASM_Master SET 
                     ASM_Code = @code, ASM_Name = @name, Mobile = @mobile, Email = @email, 
-                    District = @district, RSM_ID = @rsmId, RSM_NAME = @rsmName, Updated_At = GETDATE()
+                    District = @district, RSM_ID = @rsmId, RSM_NAME = @rsmName, Status_ID = @statusId, Updated_At = GETDATE()
                     WHERE ASM_ID = @id`);
         res.json({ message: 'ASM updated successfully' });
     } catch (err) { handleError(res, err, 'Error updating ASM'); }
@@ -439,6 +447,69 @@ router.delete('/user/:id', async (req, res) => {
         await pool.request().input('id', id).query('DELETE FROM User_Master WHERE User_ID = @id');
         res.json({ message: 'User deleted successfully' });
     } catch (err) { handleError(res, err, 'Error deleting User'); }
+});
+
+// ==========================================
+// WHATSAPP TEMPLATE MASTER
+// ==========================================
+// GET All Templates
+router.get('/template', async (req, res) => {
+    try {
+        const pool = await connectToDb();
+        const result = await pool.request().query('SELECT * FROM WhatsApp_Template_Master ORDER BY Created_At DESC');
+        res.json(result.recordset);
+    } catch (err) { handleError(res, err, 'Error fetching templates'); }
+});
+
+// CREATE Template
+router.post('/template', async (req, res) => {
+    const { templateName, content, category, statusId } = req.body;
+    try {
+        const pool = await connectToDb();
+        await pool.request()
+            .input('name', templateName)
+            .input('content', content)
+            .input('category', category)
+            .input('statusId', statusId || 1)
+            .query(`INSERT INTO WhatsApp_Template_Master (Template_Name, Content, Category, Status_ID) 
+                    VALUES (@name, @content, @category, @statusId)`);
+
+        await logActivity(pool, req.user, 'CREATE', 'MASTER', `Created Template: ${templateName}`, req);
+        res.json({ message: 'Template created successfully' });
+    } catch (err) { handleError(res, err, 'Error creating template'); }
+});
+
+// UPDATE Template
+router.put('/template/:id', async (req, res) => {
+    const { id } = req.params;
+    const { templateName, content, category, statusId } = req.body;
+    try {
+        const pool = await connectToDb();
+        await pool.request()
+            .input('id', id)
+            .input('name', templateName)
+            .input('content', content)
+            .input('category', category)
+            .input('statusId', statusId || 1)
+            .query(`UPDATE WhatsApp_Template_Master 
+                    SET Template_Name = @name, Content = @content, Category = @category, Status_ID = @statusId, Updated_At = GETDATE()
+                    WHERE Template_ID = @id`);
+
+        await logActivity(pool, req.user, 'UPDATE', 'MASTER', `Updated Template ID: ${id}`, req);
+        res.json({ message: 'Template updated successfully' });
+    } catch (err) { handleError(res, err, 'Error updating template'); }
+});
+
+// DELETE Template
+router.delete('/template/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const pool = await connectToDb();
+        await pool.request().input('id', id).query('DELETE FROM WhatsApp_Template_Master WHERE Template_ID = @id');
+
+        await logActivity(pool, req.user, 'DELETE', 'MASTER', `Deleted Template ID: ${id}`, req);
+        res.json({ message: 'Template deleted successfully' });
+    } catch (err) { handleError(res, err, 'Error deleting template'); }
 });
 
 module.exports = router;

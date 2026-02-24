@@ -47,8 +47,8 @@ export function CreateTicketForm({ onSubmit, onCancel }: CreateTicketFormProps) 
 
     const handleAddCustomer = async () => {
         // Validation
-        if (!formData.customerName.trim() || !formData.customer_number.trim()) {
-            alert('Please fill in Name and Mobile Number.');
+        if (!formData.customerName.trim() || !formData.customer_number.trim() || !formData.city_name.trim() || !formData.pincode.trim() || !formData.customer_type) {
+            alert('Please fill in Name, Mobile, Customer Type, City and Pincode.');
             return;
         }
         if (formData.customer_number.length !== 10) {
@@ -58,54 +58,48 @@ export function CreateTicketForm({ onSubmit, onCancel }: CreateTicketFormProps) 
 
         setIsAddingCustomer(true);
         try {
-            const cTypeId = Number(formData.customer_type) || 1;
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/customers', {
+            const response = await fetch('/api/customers', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     customerName: formData.customerName,
                     customerNumber: formData.customer_number,
                     customerAddress: formData.customer_address,
-                    customerTypeId: cTypeId,
-                    customerStatus: 'Active',
+                    customerTypeId: Number(formData.customer_type),
                     cityName: formData.city_name,
                     pincode: formData.pincode
                 })
             });
 
-            if (!res.ok) {
-                if (res.status === 409) {
-                    const errorData = await res.json();
-                    alert(errorData.message);
-                    setIsAddingCustomer(false);
-                    return;
-                }
-                throw new Error('Failed to create customer');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to create customer');
             }
-            const data = await res.json();
+
+            const data = await response.json();
+            const newCustomerId = data.customerId;
 
             // Success Feedback
             setAddCustomerSuccess(true);
 
-            // Auto-select after short delay to show success message
+            // Auto-select after short delay
             setTimeout(() => {
                 const newCustomer = {
-                    Customer_ID: data.customerId,
+                    Customer_ID: newCustomerId,
                     Customer_Name: formData.customerName,
                     Customer_Number: formData.customer_number,
                     Customer_Address: formData.customer_address,
-                    Customer_Type_Name: customerTypes.find(c => c.Customer_Type_ID === cTypeId)?.Customer_Type_Name || 'Unknown',
+                    Customer_Type_Name: customerTypes.find(c => c.Customer_Type_ID === Number(formData.customer_type))?.Customer_Type_Name || 'Unknown',
                     city_name: formData.city_name,
                     pincode: formData.pincode
                 };
                 selectCustomer(newCustomer);
-                setAddCustomerSuccess(false); // Reset for next time
+                setAddCustomerSuccess(false);
             }, 1500);
 
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error adding customer:', err);
-            // alert('Failed to add customer.'); // Checked above
+            alert(`Failed to add customer: ${err.message}`);
         } finally {
             setIsAddingCustomer(false);
         }
@@ -132,12 +126,12 @@ export function CreateTicketForm({ onSubmit, onCancel }: CreateTicketFormProps) 
     const performSearch = async (query: string) => {
         setHasSearched(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/customers/search?q=${query}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            setSearchResults(data);
+            const { gsheet } = await import('../lib/gsheet');
+            // Path: src/components/CreateTicketForm.tsx
+            // Search customers by name or number
+            const sql = `SELECT * FROM customers_profile WHERE Customer_Name LIKE @q OR Customer_Number LIKE @q`;
+            const result = await gsheet.query(sql, { q: `%${query}%` });
+            setSearchResults(result.recordset || []);
         } catch (err) {
             console.error('Search error:', err);
             setSearchResults([]);
@@ -166,12 +160,10 @@ export function CreateTicketForm({ onSubmit, onCancel }: CreateTicketFormProps) 
         }));
 
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/tickets/customer/${customer.Customer_ID}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const tickets = await res.json();
-            setCustomerTickets(tickets);
+            const { gsheet } = await import('../lib/gsheet');
+            const sql = `SELECT * FROM Ticket_Master WHERE Customer_ID = @id ORDER BY Created_At DESC`;
+            const result = await gsheet.query(sql, { id: customer.Customer_ID });
+            setCustomerTickets(result.recordset || []);
         } catch (err) {
             console.error(err);
         }
@@ -211,47 +203,38 @@ export function CreateTicketForm({ onSubmit, onCancel }: CreateTicketFormProps) 
         let finalCustomerId = selectedCustomer?.Customer_ID;
 
         if (!selectedCustomer && showNewCustomerForm) {
-            if (formData.customer_number.length !== 10) {
-                alert('Please enter a valid 10-digit mobile number.');
-                setIsLoading(false);
-                return;
-            }
             try {
-                const cTypeId = Number(formData.customer_type) || 1;
+                if (formData.customer_number.length !== 10) {
+                    alert('Please enter a valid 10-digit mobile number.');
+                    setIsLoading(false);
+                    return;
+                }
 
-                const token = localStorage.getItem('token');
-                const createRes = await fetch('/api/customers', {
+                // Use backend API
+                const response = await fetch('/api/customers', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         customerName: formData.customerName,
                         customerNumber: formData.customer_number,
                         customerAddress: formData.customer_address,
-                        customerTypeId: cTypeId,
-                        customerStatus: 'Active',
+                        customerTypeId: Number(formData.customer_type),
                         cityName: formData.city_name,
                         pincode: formData.pincode
                     })
                 });
 
-                if (!createRes.ok) {
-                    if (createRes.status === 409) {
-                        alert('Customer with this mobile number already exists. Please search and select them.');
-                        setIsLoading(false);
-                        return;
-                    }
-                    throw new Error('Failed to create customer');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to create customer');
                 }
 
-                const createData = await createRes.json();
-                finalCustomerId = createData.customerId;
-
-            } catch (err) {
+                const data = await response.json();
+                finalCustomerId = data.customerId;
+            } catch (err: any) {
                 console.error('Error creating customer:', err);
+                alert(`Customer creation failed: ${err.message}`);
                 setIsLoading(false);
-                if ((err as any).message !== 'Failed to create customer') {
-                    alert('Failed to create new customer. Please try again.');
-                }
                 return;
             }
         }
@@ -260,9 +243,18 @@ export function CreateTicketForm({ onSubmit, onCancel }: CreateTicketFormProps) 
         const selectedType = customerTypes.find(ct => ct.Customer_Type_ID === Number(formData.customer_type));
         const customerTypeName = selectedType ? selectedType.Customer_Type_Name : 'Unknown';
 
+        // Helper to find ASM/RSM mobile
+        const selectedASM = asmList.find(asm => asm.ASM_Name === formData.asm_name);
+        const asm_mobile = selectedASM ? selectedASM.Mobile : '';
+
+        const selectedRSM = rsmList.find(rsm => rsm.RSM_Name === formData.rsm_name);
+        const rsm_mobile = selectedRSM ? selectedRSM.Mobile : '';
+
         const payload = {
             ...formData,
-            customer_type: customerTypeName, // Send Name, not ID
+            asm_mobile,
+            rsm_mobile,
+            customer_type: customerTypeName,
             customer_id: finalCustomerId,
             customerName: formData.customerName || selectedCustomer?.Customer_Name,
             customer: {

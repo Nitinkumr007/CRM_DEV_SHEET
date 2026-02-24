@@ -36,8 +36,10 @@ export interface Ticket {
     // Expanded Schema Fields (Backend direct mapping)
     asm?: string;
     asm_name?: string;
+    asm_mobile?: string;
     rsm?: string;
     rsm_name?: string;
+    rsm_mobile?: string;
     customer_type?: string;
     customer_types?: string; // Duplicate column handling
     customer_number?: string;

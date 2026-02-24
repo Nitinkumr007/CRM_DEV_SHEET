@@ -9,8 +9,9 @@ import { Loading } from './components/ui/Loading';
 
 // Lazy load pages
 const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Tickets = lazy(() => import('./pages/Tickets')); // Verify index.tsx exists in Pages/Tickets
+const Tickets = lazy(() => import('./pages/Tickets'));
 const CreateTicket = lazy(() => import('./pages/CreateTicket'));
+const Calendar = lazy(() => import('./pages/Calendar'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Login = lazy(() => import('./pages/Login'));
@@ -49,6 +50,7 @@ function App() {
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/tickets" element={<Tickets />} />
                   <Route path="/tickets/new" element={<CreateTicket />} />
+                  <Route path="/calendar" element={<Calendar />} />
                   <Route path="/reports" element={<Reports />} />
                   <Route path="/masters" element={<Masters />} />
                   <Route path="/settings" element={<Settings />} />

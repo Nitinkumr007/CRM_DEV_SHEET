@@ -11,6 +11,7 @@ import Reports from '../pages/Reports';
 import Masters from '../pages/Masters';
 import Customers from '../pages/Customers';
 import Settings from '../pages/Settings';
+import Calendar from '../pages/Calendar';
 
 const COMPONENT_MAP: Record<string, React.ReactNode> = {
     '/': <Dashboard />,
@@ -20,6 +21,7 @@ const COMPONENT_MAP: Record<string, React.ReactNode> = {
     '/reports': <Reports />,
     '/masters': <Masters />,
     '/settings': <Settings />,
+    '/calendar': <Calendar />,
 };
 
 export function AppLayout() {
@@ -40,7 +42,7 @@ export function AppLayout() {
                 onClose={() => setIsMobileMenuOpen(false)}
             />
 
-            <div className="flex-1 flex flex-col min-h-screen md:pl-72 transition-all duration-300 relative z-10 text-nowrap">
+            <div className="flex-1 flex flex-col min-h-screen md:pl-72 transition-all duration-300 relative z-10">
 
                 {/* Tabs Bar - Acts as Title Bar */}
                 <div className="sticky top-0 z-20 bg-slate-200/90 dark:bg-slate-900/90 backdrop-blur w-full border-b border-slate-300 dark:border-slate-800">

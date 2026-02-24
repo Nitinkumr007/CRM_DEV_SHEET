@@ -1,4 +1,4 @@
-import { LayoutDashboard, Ticket, Settings, Database, Users, BarChart3, LogOut, X, Plus } from 'lucide-react';
+import { LayoutDashboard, Ticket, Settings, Database, Users, BarChart3, LogOut, X, Calendar as CalendarIcon, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useTabs } from '../context/TabContext';
@@ -15,6 +15,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     const menuItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
         { id: 'tickets', label: 'Tickets', icon: Ticket, path: '/tickets' },
+        { id: 'calendar', label: 'Calendar', icon: CalendarIcon, path: '/calendar' },
         { id: 'customers', label: 'Customers', icon: Users, path: '/customers' },
         { id: 'reports', label: 'Reports', icon: BarChart3, path: '/reports' },
         { id: 'masters', label: 'Masters', icon: Database, path: '/masters' },
@@ -54,16 +55,17 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </button>
             </div>
 
-            {/* 3. Add Ticket Action */}
-            <div className="px-4 mb-2 mt-4">
+            {/* 2. New Ticket Button (Prominent) */}
+            <div className="px-4 py-4">
                 <button
                     onClick={() => handleNavigation('/tickets/new', 'New Ticket')}
-                    className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-4 rounded-xl shadow-lg shadow-indigo-500/20 dark:shadow-indigo-500/10 transition-all active:scale-[0.98] font-medium text-sm group"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 dark:shadow-none transition-all active:scale-95 group"
                 >
-                    <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
+                    <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
                     <span>New Ticket</span>
                 </button>
             </div>
+
 
             {/* 4. Navigation Links */}
             <nav className="flex-1 px-4 space-y-1 overflow-y-auto py-4">

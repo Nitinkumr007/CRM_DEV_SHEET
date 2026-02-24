@@ -1,7 +1,7 @@
 import { PRIORITY_STYLES, STATUS_STYLES } from '../types/ticket';
 import type { Ticket } from '../types/ticket';
 import { cn } from '../lib/utils';
-import { MoreHorizontal, Clock, AlertCircle, Phone } from 'lucide-react';
+import { MoreHorizontal, Clock, AlertCircle, Phone, UserCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface TicketListProps {
@@ -20,6 +20,7 @@ export function TicketList({ tickets, onTicketClick }: TicketListProps) {
                             <th className="px-6 py-4">Subject</th>
                             <th className="px-6 py-4">Status</th>
                             <th className="px-6 py-4">Priority</th>
+                            <th className="px-6 py-4">ASM</th>
                             <th className="px-6 py-4">Customer</th>
                             <th className="px-6 py-4">Date</th>
                             <th className="px-6 py-4 text-right">Actions</th>
@@ -58,6 +59,14 @@ export function TicketList({ tickets, onTicketClick }: TicketListProps) {
                                             {ticket.priority === 'urgent' && <AlertCircle className="w-3 h-3 mr-1" />}
                                             {ticket.priority}
                                         </span>
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                                            <UserCircle className="w-4 h-4 text-indigo-600" />
+                                        </div>
+                                        <span className="text-sm font-medium text-slate-700">{ticket.asm_name || 'N/A'}</span>
                                     </div>
                                 </td>
                                 <td className="px-6 py-4">

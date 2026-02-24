@@ -18,26 +18,25 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
     const fetchSettings = async () => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) {
+            const { gsheet } = await import('../lib/gsheet');
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            if (!user.User_ID) {
                 setLoading(false);
                 return;
             }
 
-            const res = await fetch('/api/settings', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const sql = `SELECT * FROM User_Settings WHERE User_ID = @userId`;
+            const result = await gsheet.query(sql, { userId: user.User_ID });
 
-            if (res.ok) {
-                const data = await res.json();
-                // Map DB keys to Context keys
+            if (result.recordset && result.recordset.length > 0) {
+                const data = result.recordset[0];
                 setSettings({
                     settingId: data.Setting_ID,
                     userId: data.User_ID,
                     theme: data.Theme || 'light',
-                    notificationsEnabled: data.Notifications_Enabled,
-                    emailNotifications: data.Email_Notifications,
-                    dashboardLayout: data.Dashboard_Layout || [],
+                    notificationsEnabled: !!data.Notifications_Enabled,
+                    emailNotifications: !!data.Email_Notifications,
+                    dashboardLayout: JSON.parse(data.Dashboard_Layout || '[]'),
                     itemsPerPage: data.Items_Per_Page || 10,
                     defaultView: data.Default_View || 'list',
                     updatedAt: data.Updated_At
@@ -55,33 +54,52 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const updateSettings = async (updates: Partial<UserSettings>) => {
-        // Optimistic UI update
         const newSettings = { ...settings, ...updates };
         setSettings(newSettings);
 
         try {
-            const token = localStorage.getItem('token');
-            // Map Context keys to DB keys for API
+            const { gsheet } = await import('../lib/gsheet');
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+
             const apiPayload = {
-                theme: updates.theme,
-                notifications_enabled: updates.notificationsEnabled,
-                email_notifications: updates.emailNotifications,
-                dashboard_layout: updates.dashboardLayout,
-                items_per_page: updates.itemsPerPage,
-                default_view: updates.defaultView
+                userId: user.User_ID,
+                theme: updates.theme || newSettings.theme,
+                notifications_enabled: updates.notificationsEnabled ? 1 : 0,
+                email_notifications: updates.emailNotifications ? 1 : 0,
+                dashboard_layout: JSON.stringify(updates.dashboardLayout || newSettings.dashboardLayout),
+                items_per_page: updates.itemsPerPage || newSettings.itemsPerPage,
+                default_view: updates.defaultView || newSettings.defaultView
             };
 
-            await fetch('/api/settings', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(apiPayload)
-            });
+            const checkSql = `SELECT Setting_ID FROM User_Settings WHERE User_ID = @userId`;
+            const checkResult = await gsheet.query(checkSql, { userId: user.User_ID });
+
+            if (checkResult.recordset && checkResult.recordset.length > 0) {
+                await gsheet.query(`
+                    UPDATE User_Settings SET 
+                        Theme = @theme, 
+                        Notifications_Enabled = @notifications_enabled, 
+                        Email_Notifications = @email_notifications, 
+                        Dashboard_Layout = @dashboard_layout, 
+                        Items_Per_Page = @items_per_page, 
+                        Default_View = @default_view 
+                    WHERE User_ID = @userId
+                `, apiPayload);
+            } else {
+                await gsheet.query(`
+                    INSERT INTO User_Settings (
+                        User_ID, Theme, Notifications_Enabled, 
+                        Email_Notifications, Dashboard_Layout, 
+                        Items_Per_Page, Default_View
+                    ) VALUES (
+                        @userId, @theme, @notifications_enabled, 
+                        @email_notifications, @dashboard_layout, 
+                        @items_per_page, @default_view
+                    )
+                `, apiPayload);
+            }
         } catch (err) {
             console.error('Failed to update settings', err);
-            // Revert on failure (could implement more robust rollback)
             fetchSettings();
         }
     };
