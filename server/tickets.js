@@ -219,9 +219,17 @@ router.post('/', async (req, res) => {
 
         // 4. Increment Customer Ticket Count
         if (customer_id) {
-            await pool.request()
+            const custRes = await pool.request()
                 .input('cid', customer_id)
-                .query("UPDATE customers_profile SET tickets_count = ISNULL(tickets_count, 0) + 1 WHERE Customer_ID = @cid");
+                .query("SELECT * FROM customers_profile WHERE Customer_ID = @cid");
+
+            if (custRes.recordset.length > 0) {
+                const currentCount = parseInt(custRes.recordset[0].tickets_count || 0);
+                await pool.request()
+                    .input('cid', customer_id)
+                    .input('newCount', currentCount + 1)
+                    .query("UPDATE customers_profile SET tickets_count = @newCount WHERE Customer_ID = @cid");
+            }
         }
 
         await pool.request()
